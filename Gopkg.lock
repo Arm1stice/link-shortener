@@ -2,18 +2,6 @@
 
 
 [[projects]]
-  branch = "master"
-  name = "github.com/globalsign/mgo"
-  packages = [
-    ".",
-    "bson",
-    "internal/json",
-    "internal/sasl",
-    "internal/scram"
-  ]
-  revision = "113d3961e7311526535a1ef7042196563d442761"
-
-[[projects]]
   name = "github.com/go-chi/chi"
   packages = [
     ".",
@@ -27,6 +15,12 @@
   packages = ["proto"]
   revision = "b4deda0973fb4c70b50d226b1af49f3da59f5265"
   version = "v1.1.0"
+
+[[projects]]
+  name = "github.com/joho/godotenv"
+  packages = ["."]
+  revision = "a79fa1e548e2c689c241d10173efd51e5d689d5b"
+  version = "v1.2.0"
 
 [[projects]]
   name = "github.com/volatiletech/authboss"
@@ -87,6 +81,6 @@
 [solve-meta]
   analyzer-name = "dep"
   analyzer-version = 1
-  inputs-digest = "ad4afe62d4a61e93ac538a814c756604c73d6929045fe2e3e2c06122329d30b4"
+  inputs-digest = "88b0b80441329fd0c6c0c1b3d6eef86591daf55b19c989f17305d901c132ce69"
   solver-name = "gps-cdcl"
   solver-version = 1

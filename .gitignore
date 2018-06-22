@@ -1,0 +1,5 @@
+.env
+link-shortener.exe
+.idea/workspace.xml
+.idea/tasks.xml
+vendor/*
