@@ -34,13 +34,9 @@
   version = "3.3.2"
 
 [[constraint]]
-  name = "github.com/volatiletech/authboss"
-  version = "1.2.0"
-
-[[constraint]]
-  branch = "master"
-  name = "github.com/globalsign/mgo"
-
-[[constraint]]
   name = "github.com/joho/godotenv"
   version = "1.2.0"
+
+[[constraint]]
+  name = "github.com/asaskevich/govalidator"
+  version = "9.0.0"
