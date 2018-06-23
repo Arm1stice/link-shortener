@@ -1,5 +1,6 @@
 .env
-link-shortener.exe
+link-shortener*
 .idea/workspace.xml
 .idea/tasks.xml
 vendor/*
+*-packr.go

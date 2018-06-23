@@ -14,6 +14,7 @@ import (
 	"github.com/go-chi/chi"
 	"github.com/go-chi/chi/middleware"
 	_ "github.com/go-sql-driver/mysql"
+	"github.com/gobuffalo/packr"
 	"github.com/joho/godotenv"
 )
 
@@ -24,7 +25,7 @@ var (
 func main() {
 	// Read the .env file and parse it into the local environment
 	if err := godotenv.Load(); err != nil {
-		log.Fatal("Error loading .env file")
+		log.Println("No .env file to load")
 	} else {
 		log.Println("Successfully loaded .env file")
 	}
@@ -44,23 +45,6 @@ func main() {
 	log.Println("Successfully connected to MySQL database")
 	defer db.Close()
 
-	// Prepare statements
-	linkInsertionStatement, err := db.Prepare("INSERT INTO links (url, views) VALUES (?, 0)")
-	if err != nil {
-		log.Fatal("Failed to prepare linkInsertionStatement")
-		panic(err)
-	}
-	selectStatement, err := db.Prepare("SELECT * from links WHERE id = ?")
-	if err != nil {
-		log.Fatal("Failed to prepare selectStatement")
-		panic(err)
-	}
-	updateStatement, err := db.Prepare("UPDATE links SET views=views+1 WHERE id = ?")
-	if err != nil {
-		log.Fatal("Failed to prepare updateStatement")
-		panic(err)
-	}
-
 	// Initialize the main router
 	r := chi.NewRouter()
 
@@ -71,8 +55,11 @@ func main() {
 	r.Use(middleware.Recoverer)
 	r.Use(middleware.Timeout(60 * time.Second))
 
+	// Create a packr box
+	box := packr.NewBox("./views")
+	indexHTMLString := box.String("index.html")
 	// Implement the templates
-	indexTemplate := template.Must(template.ParseFiles("views/index.html"))
+	indexTemplate := template.Must(template.New("index.html").Parse(indexHTMLString))
 
 	// Basic get on the index
 	type IndexMessage struct {
@@ -110,10 +97,25 @@ func main() {
 
 	// Link redirect
 	r.Get("/link/{linkID}", func(w http.ResponseWriter, r *http.Request) {
+		// Create prepared statements
+		selectStatement, err := db.Prepare("SELECT * from links WHERE id = ?")
+		if err != nil {
+			log.Fatal("Failed to prepare selectStatement")
+			panic(err)
+		}
+		defer selectStatement.Close()
+		updateStatement, err := db.Prepare("UPDATE links SET views=views+1 WHERE id = ?")
+		if err != nil {
+			log.Fatal("Failed to prepare updateStatement")
+			panic(err)
+		}
+		defer updateStatement.Close()
 		// Get linkID out of URL
 		linkID := chi.URLParam(r, "linkID")
+
 		// Convert back to a number
 		parsedID, err := strconv.ParseInt(linkID, 36, 64)
+
 		// See if there was an error while converting
 		if err != nil {
 			fmt.Fprintf(w, "Invalid link ID format")
@@ -147,16 +149,24 @@ func main() {
 			fmt.Fprintf(w, "Error")
 			return
 		}
-		http.Redirect(w, r, link, 301)
-		fmt.Fprintf(w, "Link:"+link+" | Views: "+strconv.FormatInt(views, 10))
+		http.Redirect(w, r, link, 302)
 	})
 
 	// Link stats
 	r.Get("/stats/{linkID}", func(w http.ResponseWriter, r *http.Request) {
+		// Create prepared statements
+		selectStatement, err := db.Prepare("SELECT * from links WHERE id = ?")
+		if err != nil {
+			log.Fatal("Failed to prepare selectStatement")
+			panic(err)
+		}
+		defer selectStatement.Close()
 		// Get linkID out of URL
 		linkID := chi.URLParam(r, "linkID")
+
 		// Convert back to a number
 		parsedID, err := strconv.ParseInt(linkID, 36, 64)
+
 		// See if there was an error while converting
 		if err != nil {
 			fmt.Fprintf(w, "Invalid link ID format")
@@ -186,6 +196,13 @@ func main() {
 		if len(url) == 0 {
 			http.Redirect(w, r, "/?error=noURL", 301)
 		} else {
+			// Create link insertion statement
+			linkInsertionStatement, err := db.Prepare("INSERT INTO links (url, views) VALUES (?, 0)")
+			if err != nil {
+				log.Fatal("Failed to prepare linkInsertionStatement")
+				panic(err)
+			}
+			defer linkInsertionStatement.Close()
 			// Check if the URL is valid, if not, then redirect to invalidURL message
 			if isValidURL := govalidator.IsURL(url); isValidURL {
 				// Execute prepared statement
