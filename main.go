@@ -95,8 +95,84 @@ func main() {
 		indexTemplate.Execute(w, nil)
 	})
 
+	// Link stats
+	r.Get("/stats/{linkID}", func(w http.ResponseWriter, r *http.Request) {
+		// Create prepared statements
+		selectStatement, err := db.Prepare("SELECT * from links WHERE id = ?")
+		if err != nil {
+			log.Fatal("Failed to prepare selectStatement")
+			panic(err)
+		}
+		defer selectStatement.Close()
+		// Get linkID out of URL
+		linkID := chi.URLParam(r, "linkID")
+
+		// Convert back to a number
+		parsedID, err := strconv.ParseInt(linkID, 36, 64)
+
+		// See if there was an error while converting
+		if err != nil {
+			fmt.Fprintf(w, "Invalid link ID format")
+		}
+
+		// Now get the URL that this links to
+		var rowID int64
+		var link string
+		var views int64
+		err = selectStatement.QueryRow(parsedID).Scan(&rowID, &link, &views)
+		if err != nil {
+			log.Println("Failed to select link")
+			log.Fatal(err.Error())
+			return
+		}
+		fmt.Fprintf(w, "Link: "+link+" | Views: "+strconv.FormatInt(views, 10))
+	})
+
+	r.Post("/createShortURL", func(w http.ResponseWriter, r *http.Request) {
+		// First, we parse the form
+		r.ParseForm()
+
+		// Get the value of URL from the form
+		url := r.FormValue("url")
+
+		// If URL value wasn't passed or is blank, redirect to noURL error message
+		if len(url) == 0 {
+			http.Redirect(w, r, "/?error=noURL", 301)
+		} else {
+			// Create link insertion statement
+			linkInsertionStatement, err := db.Prepare("INSERT INTO links (url, views) VALUES (?, 0)")
+			if err != nil {
+				log.Fatal("Failed to prepare linkInsertionStatement")
+				panic(err)
+			}
+			defer linkInsertionStatement.Close()
+			// Check if the URL is valid, if not, then redirect to invalidURL message
+			if isValidURL := govalidator.IsURL(url); isValidURL {
+				// Execute prepared statement
+				result, err := linkInsertionStatement.Exec(url)
+				if err != nil {
+					http.Redirect(w, r, "/?error=insError", 301)
+					return
+				}
+
+				// Get id of the inserted link
+				insertedID, err := result.LastInsertId()
+				if err != nil {
+					http.Redirect(w, r, "/?error=getIdError", 301)
+					return
+				}
+
+				// Convert the id to base36 and redirect successfully
+				base36Id := strconv.FormatInt(insertedID, 36)
+				http.Redirect(w, r, "/?link="+base36Id, 301)
+			} else {
+				http.Redirect(w, r, "/?error=invalidURL", 301)
+			}
+		}
+	})
+
 	// Link redirect
-	r.Get("/link/{linkID}", func(w http.ResponseWriter, r *http.Request) {
+	r.Get("/{linkID}", func(w http.ResponseWriter, r *http.Request) {
 		// Create prepared statements
 		selectStatement, err := db.Prepare("SELECT * from links WHERE id = ?")
 		if err != nil {
@@ -152,81 +228,6 @@ func main() {
 		http.Redirect(w, r, link, 302)
 	})
 
-	// Link stats
-	r.Get("/stats/{linkID}", func(w http.ResponseWriter, r *http.Request) {
-		// Create prepared statements
-		selectStatement, err := db.Prepare("SELECT * from links WHERE id = ?")
-		if err != nil {
-			log.Fatal("Failed to prepare selectStatement")
-			panic(err)
-		}
-		defer selectStatement.Close()
-		// Get linkID out of URL
-		linkID := chi.URLParam(r, "linkID")
-
-		// Convert back to a number
-		parsedID, err := strconv.ParseInt(linkID, 36, 64)
-
-		// See if there was an error while converting
-		if err != nil {
-			fmt.Fprintf(w, "Invalid link ID format")
-		}
-
-		// Now get the URL that this links to
-		var rowID int64
-		var link string
-		var views int64
-		err = selectStatement.QueryRow(parsedID).Scan(&rowID, &link, &views)
-		if err != nil {
-			log.Println("Failed to select link")
-			log.Fatal(err.Error())
-			return
-		}
-		fmt.Fprintf(w, "Link: "+link+" | Views: "+strconv.FormatInt(views, 10))
-	})
-
-	r.Post("/api/createShortURL", func(w http.ResponseWriter, r *http.Request) {
-		// First, we parse the form
-		r.ParseForm()
-
-		// Get the value of URL from the form
-		url := r.FormValue("url")
-
-		// If URL value wasn't passed or is blank, redirect to noURL error message
-		if len(url) == 0 {
-			http.Redirect(w, r, "/?error=noURL", 301)
-		} else {
-			// Create link insertion statement
-			linkInsertionStatement, err := db.Prepare("INSERT INTO links (url, views) VALUES (?, 0)")
-			if err != nil {
-				log.Fatal("Failed to prepare linkInsertionStatement")
-				panic(err)
-			}
-			defer linkInsertionStatement.Close()
-			// Check if the URL is valid, if not, then redirect to invalidURL message
-			if isValidURL := govalidator.IsURL(url); isValidURL {
-				// Execute prepared statement
-				result, err := linkInsertionStatement.Exec(url)
-				if err != nil {
-					http.Redirect(w, r, "/?error=insError", 301)
-					return
-				}
-
-				// Get id of the inserted link
-				insertedID, err := result.LastInsertId()
-				if err != nil {
-					http.Redirect(w, r, "/?error=getIdError", 301)
-					return
-				}
-
-				// Convert the id to base36 and redirect successfully
-				base36Id := strconv.FormatInt(insertedID, 36)
-				http.Redirect(w, r, "/?link="+base36Id, 301)
-			} else {
-				http.Redirect(w, r, "/?error=invalidURL", 301)
-			}
-		}
-	})
 	// Handle all 404
 	r.NotFound(func(w http.ResponseWriter, r *http.Request) {
 		fmt.Fprintf(w, "This page was unable to be found")

@@ -31,7 +31,7 @@
                 Success! Generated Link <a href="https://wcal.xyz/{{.SuccessMessage}}">https://wcal.xyz/{{.SuccessMessage}}</a>
             </div>
             {{end}}
-            <form method='POST' action='/api/createShortURL'>
+            <form method='POST' action='/createShortURL'>
                 <input class='form-control' name='url' placeholder='URL to shorten'>
                 <br>
                 <button type='submit' class='btn btn-primary' href='#' role='button'>Submit link</button>
