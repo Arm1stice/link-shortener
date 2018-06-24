@@ -17,16 +17,34 @@
   version = "v3.3.2"
 
 [[projects]]
+  branch = "master"
+  name = "github.com/go-chi/hostrouter"
+  packages = ["."]
+  revision = "7bff2694dfd99a31a89c62e5f8a2d9ec2d71da8e"
+
+[[projects]]
   name = "github.com/go-sql-driver/mysql"
   packages = ["."]
   revision = "d523deb1b23d913de5bdada721a6071e71283618"
   version = "v1.4.0"
 
 [[projects]]
+  name = "github.com/gobuffalo/packr"
+  packages = ["."]
+  revision = "bd47f2894846e32edcf9aa37290fef76c327883f"
+  version = "v1.11.1"
+
+[[projects]]
   name = "github.com/joho/godotenv"
   packages = ["."]
   revision = "a79fa1e548e2c689c241d10173efd51e5d689d5b"
   version = "v1.2.0"
+
+[[projects]]
+  name = "github.com/pkg/errors"
+  packages = ["."]
+  revision = "645ef00459ed84a119197bfb8d8205042c6df63d"
+  version = "v0.8.0"
 
 [[projects]]
   name = "google.golang.org/appengine"
@@ -37,6 +55,6 @@
 [solve-meta]
   analyzer-name = "dep"
   analyzer-version = 1
-  inputs-digest = "be10b30ce57aa89eae58cf1c1485e3ead6f13bfc25b5b45809887b53ada6ccdd"
+  inputs-digest = "9fc8b180037d82e5cd9afe41ee962b6a73daa5059f1fbd2cde58de4104a6d0cb"
   solver-name = "gps-cdcl"
   solver-version = 1
