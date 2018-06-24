@@ -22,6 +22,9 @@ func main() {
 		log.Println("Successfully loaded .env file")
 	}
 
+	// Initialize the database
+	initDatabase()
+
 	// Initialize the main router
 	r := chi.NewRouter()
 

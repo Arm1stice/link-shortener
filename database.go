@@ -11,8 +11,8 @@ var (
 	DB *sql.DB
 )
 
-//Init Initialize the MySQL Database
-func Init() {
+// Initialize the MySQL Database
+func initDatabase() {
 	// Set up MySQL
 	log.Println("Connecting to MySQL Database")
 	address := os.Getenv("MYSQL_URI")
