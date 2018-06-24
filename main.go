@@ -234,7 +234,7 @@ func main() {
 	})
 
 	// Listen and serve the web server
-	port := ":8000"
+	port := ":5000"
 	if value, ok := os.LookupEnv("PORT"); ok {
 		port = ":" + value
 	}

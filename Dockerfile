@@ -14,5 +14,5 @@ RUN go build -o /bin/link-shortener
 
 FROM alpine
 COPY --from=build /bin/link-shortener /bin/link-shortener
-CMD ["link-shortener"]
-EXPOSE 8000
+ENTRYPOINT "/bin/link-shortener" 
+EXPOSE 5000
