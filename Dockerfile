@@ -13,6 +13,7 @@ RUN packr
 RUN go build -o /bin/link-shortener
 
 FROM alpine
-COPY --from=build /bin/link-shortener /bin/link-shortener
-ENTRYPOINT "/bin/link-shortener" 
+COPY --from=build /bin/link-shortener /link-shortener
+COPY --from=build /go/src/github.com/wcalandro/link-shortener/CHECKS /CHECKS
+ENTRYPOINT "/link-shortener" 
 EXPOSE 5000
