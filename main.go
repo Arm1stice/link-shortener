@@ -24,6 +24,7 @@ func main() {
 
 	// Initialize the database
 	initDatabase()
+	defer DB.Close()
 
 	// Initialize the main router
 	r := chi.NewRouter()

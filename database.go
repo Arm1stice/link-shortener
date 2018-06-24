@@ -27,5 +27,4 @@ func initDatabase() {
 	}
 	log.Println("Successfully connected to MySQL database")
 	DB = db
-	defer DB.Close()
 }
