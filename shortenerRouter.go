@@ -18,12 +18,6 @@ func shortenerRouter(store *redistore.RediStore) chi.Router {
 
 	// Link redirect
 	r.Get("/{linkID}", func(w http.ResponseWriter, r *http.Request) {
-		// Get a session.
-		session, err := store.Get(r, "session")
-		if err != nil {
-			log.Println("ERROR GETTING SESSION: ", err.Error())
-		}
-		fmt.Println("VALUE: ", session.Values["test"])
 		// Create prepared statements
 		selectStatement, err := db.Prepare("SELECT * from links WHERE id = ?")
 		if err != nil {

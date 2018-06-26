@@ -39,7 +39,6 @@ func websiteRouter(store *redistore.RediStore) chi.Router {
 		if err != nil {
 			log.Println("ERROR GETTING SESSION: ", err.Error())
 		}
-		fmt.Println("Session ID: ", session.ID)
 
 		indexMessage := &shortenMessage{}
 		indexMessage.ErrorMessages = session.Flashes("shorten_error")
@@ -52,12 +51,6 @@ func websiteRouter(store *redistore.RediStore) chi.Router {
 
 	// Link stats
 	r.Get("/stats/{linkID}", func(w http.ResponseWriter, r *http.Request) {
-		// Get a session.
-		session, err := store.Get(r, "session")
-		if err != nil {
-			log.Println("ERROR GETTING SESSION: ", err.Error())
-		}
-		fmt.Println("ID: ", session.ID)
 
 		// Create prepared statements
 		selectStatement, err := db.Prepare("SELECT * from links WHERE id = ?")
@@ -96,7 +89,6 @@ func websiteRouter(store *redistore.RediStore) chi.Router {
 		if err != nil {
 			log.Println("ERROR GETTING SESSION: ", err.Error())
 		}
-		fmt.Println("ID: ", session.ID)
 
 		// First, we parse the form
 		r.ParseForm()
