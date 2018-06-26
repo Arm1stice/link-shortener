@@ -48,26 +48,24 @@ func shortenerRouter() chi.Router {
 		err = selectStatement.QueryRow(parsedID).Scan(&rowID, &link, &views)
 		if err != nil {
 			log.Println("Failed to select link")
-			log.Fatal(err.Error())
+			fmt.Fprintf(w, "That link doesn't exist")
 			return
 		}
 
 		result, err3 := updateStatement.Exec(parsedID)
 		if err3 != nil {
 			log.Println("Failed to update views")
-			log.Fatal(err.Error())
+			http.Redirect(w, r, link, 302)
 			return
 		}
 		rowsAffected, err4 := result.RowsAffected()
 		if err4 != nil {
 			log.Println("Failed to get rows affected")
-			log.Fatal(err.Error())
+			http.Redirect(w, r, link, 302)
 			return
 		}
 		if rowsAffected != 1 {
 			log.Println("Rows affected wasn't 1, it was ", rowsAffected)
-			fmt.Fprintf(w, "Error")
-			return
 		}
 		http.Redirect(w, r, link, 302)
 	})
