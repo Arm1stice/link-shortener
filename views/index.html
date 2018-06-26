@@ -20,15 +20,15 @@
             <h1 class="display-4">Wyatt Calandro's Link Shortener</h1>
             <p class="lead">A basic link shortening service created by Wyatt Calandro as part of his delve into the Go programming language</p>
             <hr class="my-4">
-            {{if .ErrorMessage}}
+            {{range .ErrorMessages}}
             <div class="alert alert-danger" role="alert">
-                {{.ErrorMessage}}
+                {{.}}
             </div>
             {{end}}
 
-            {{if .SuccessMessage}}
+            {{range .SuccessMessages}}
             <div class="alert alert-success" role="alert">
-                Success! Generated Link <a href="https://wcal.xyz/{{.SuccessMessage}}">https://wcal.xyz/{{.SuccessMessage}}</a>
+                Success! Generated Link <a href="https://wcal.xyz/{{.}}">https://wcal.xyz/{{.}}</a>
             </div>
             {{end}}
             <form method='POST' action='/createShortURL'>

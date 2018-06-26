@@ -11,6 +11,7 @@ import (
 	"github.com/go-chi/chi/middleware"
 	"github.com/go-chi/hostrouter"
 	_ "github.com/go-sql-driver/mysql"
+	"github.com/gorilla/context"
 	"github.com/joho/godotenv"
 	redistore "gopkg.in/boj/redistore.v1"
 )
@@ -67,5 +68,5 @@ func main() {
 		port = ":" + value
 	}
 	log.Println("Running on port " + port)
-	http.ListenAndServe(port, r)
+	http.ListenAndServe(port, context.ClearHandler(r))
 }

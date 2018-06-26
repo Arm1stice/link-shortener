@@ -15,10 +15,10 @@ import (
 	"github.com/gobuffalo/packr"
 )
 
-//IndexMessage Basic get on the index
-type IndexMessage struct {
-	ErrorMessage   string
-	SuccessMessage string
+// Messages when shortening
+type shortenMessage struct {
+	ErrorMessages   []interface{}
+	SuccessMessages []interface{}
 }
 
 func websiteRouter(store *redistore.RediStore) chi.Router {
@@ -39,36 +39,15 @@ func websiteRouter(store *redistore.RediStore) chi.Router {
 		if err != nil {
 			log.Println("ERROR GETTING SESSION: ", err.Error())
 		}
-		fmt.Println("VALUE: ", session.Values["test"])
+		fmt.Println("Session ID: ", session.ID)
 
-		pErr := r.URL.Query().Get("error")
-		if pErr != "" {
-			indexMessage := &IndexMessage{}
-			switch pErr {
-			case "noURL":
-				indexMessage.ErrorMessage = "You must enter a URL"
-			case "invalidURL":
-				indexMessage.ErrorMessage = "Invalid URL"
-			case "insError":
-				indexMessage.ErrorMessage = "Error occurring inserting the link into the database"
-			case "getIdError":
-				indexMessage.ErrorMessage = "An error occurred getting the id of the link"
-			case "parseError":
-				indexMessage.ErrorMessage = "An error occurred parsing the URL"
-			default:
-				indexMessage.ErrorMessage = "An error occurred"
-			}
-			indexTemplate.Execute(w, indexMessage)
-			return
-		}
+		indexMessage := &shortenMessage{}
+		indexMessage.ErrorMessages = session.Flashes("shorten_error")
+		indexMessage.SuccessMessages = session.Flashes("shorten_success")
 
-		link := r.URL.Query().Get("link")
-		if link != "" {
-			indexMessage := &IndexMessage{SuccessMessage: link}
-			indexTemplate.Execute(w, indexMessage)
-			return
-		}
-		indexTemplate.Execute(w, nil)
+		session.Save(r, w)
+
+		indexTemplate.Execute(w, indexMessage)
 	})
 
 	// Link stats
@@ -78,7 +57,7 @@ func websiteRouter(store *redistore.RediStore) chi.Router {
 		if err != nil {
 			log.Println("ERROR GETTING SESSION: ", err.Error())
 		}
-		fmt.Println("VALUE: ", session.Values["test"])
+		fmt.Println("ID: ", session.ID)
 
 		// Create prepared statements
 		selectStatement, err := db.Prepare("SELECT * from links WHERE id = ?")
@@ -117,7 +96,7 @@ func websiteRouter(store *redistore.RediStore) chi.Router {
 		if err != nil {
 			log.Println("ERROR GETTING SESSION: ", err.Error())
 		}
-		fmt.Println("VALUE: ", session.Values["test"])
+		fmt.Println("ID: ", session.ID)
 
 		// First, we parse the form
 		r.ParseForm()
@@ -127,7 +106,9 @@ func websiteRouter(store *redistore.RediStore) chi.Router {
 
 		// If URL value wasn't passed or is blank, redirect to noURL error message
 		if len(userURL) == 0 {
-			http.Redirect(w, r, "/?error=noURL", 301)
+			session.AddFlash("URL field cannot be empty", "shorten_error")
+			session.Save(r, w)
+			http.Redirect(w, r, "/", 302)
 		} else {
 			// Create link insertion statement
 			linkInsertionStatement, err := db.Prepare("INSERT INTO links (url, views) VALUES (?, 0)")
@@ -142,7 +123,9 @@ func websiteRouter(store *redistore.RediStore) chi.Router {
 				var parsedURL *url.URL
 				parsedURL, err = url.Parse(userURL)
 				if err != nil {
-					http.Redirect(w, r, "/?error=parseError", 301)
+					session.AddFlash("An error occurred while parsing the URL", "shorten_error")
+					session.Save(r, w)
+					http.Redirect(w, r, "/", 302)
 					return
 				}
 
@@ -155,22 +138,30 @@ func websiteRouter(store *redistore.RediStore) chi.Router {
 				// Execute prepared statement
 				result, err := linkInsertionStatement.Exec(userURL)
 				if err != nil {
-					http.Redirect(w, r, "/?error=insError", 301)
+					session.AddFlash("An error occurred while trying to insert URL into the database", "shorten_error")
+					session.Save(r, w)
+					http.Redirect(w, r, "/", 302)
 					return
 				}
 
 				// Get id of the inserted link
 				insertedID, err := result.LastInsertId()
 				if err != nil {
-					http.Redirect(w, r, "/?error=getIdError", 301)
+					session.AddFlash("An error occurred while tryig to parse URL", "shorten_error")
+					session.Save(r, w)
+					http.Redirect(w, r, "/", 302)
 					return
 				}
 
 				// Convert the id to base36 and redirect successfully
 				base36Id := strconv.FormatInt(insertedID, 36)
-				http.Redirect(w, r, "/?link="+base36Id, 301)
+				session.AddFlash(base36Id, "shorten_success")
+				session.Save(r, w)
+				http.Redirect(w, r, "/", 302)
 			} else {
-				http.Redirect(w, r, "/?error=invalidURL", 301)
+				session.AddFlash("Invalid URL", "shorten_error")
+				session.Save(r, w)
+				http.Redirect(w, r, "/", 302)
 			}
 		}
 	})
