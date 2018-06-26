@@ -5,6 +5,7 @@ import (
 	"html/template"
 	"log"
 	"net/http"
+	"net/url"
 	"strconv"
 
 	"github.com/asaskevich/govalidator"
@@ -43,6 +44,8 @@ func websiteRouter() chi.Router {
 				indexMessage.ErrorMessage = "Error occurring inserting the link into the database"
 			case "getIdError":
 				indexMessage.ErrorMessage = "An error occurred getting the id of the link"
+			case "parseError":
+				indexMessage.ErrorMessage = "An error occurred parsing the URL"
 			default:
 				indexMessage.ErrorMessage = "An error occurred"
 			}
@@ -85,8 +88,8 @@ func websiteRouter() chi.Router {
 		var views int64
 		err = selectStatement.QueryRow(parsedID).Scan(&rowID, &link, &views)
 		if err != nil {
-			log.Println("Failed to select link")
-			log.Fatal(err.Error())
+			log.Println("Failed to select link, it probably doesn't exist")
+			fmt.Fprintf(w, "That link doesn't exist")
 			return
 		}
 		fmt.Fprintf(w, "Link: "+link+" | Views: "+strconv.FormatInt(views, 10))
@@ -97,10 +100,10 @@ func websiteRouter() chi.Router {
 		r.ParseForm()
 
 		// Get the value of URL from the form
-		url := r.FormValue("url")
+		userURL := r.FormValue("url")
 
 		// If URL value wasn't passed or is blank, redirect to noURL error message
-		if len(url) == 0 {
+		if len(userURL) == 0 {
 			http.Redirect(w, r, "/?error=noURL", 301)
 		} else {
 			// Create link insertion statement
@@ -111,9 +114,23 @@ func websiteRouter() chi.Router {
 			}
 			defer linkInsertionStatement.Close()
 			// Check if the URL is valid, if not, then redirect to invalidURL message
-			if isValidURL := govalidator.IsURL(url); isValidURL {
+			if isValidURL := govalidator.IsURL(userURL); isValidURL {
+				// If it's valid, we want to make sure it has a url scheme attached to it
+				var parsedURL *url.URL
+				parsedURL, err = url.Parse(userURL)
+				if err != nil {
+					http.Redirect(w, r, "/?error=parseError", 301)
+					return
+				}
+
+				// Check if the parsed URL has a scheme and if not, add one
+				if parsedURL.Scheme == "" {
+					parsedURL.Scheme = "http"
+				}
+				userURL = parsedURL.String()
+
 				// Execute prepared statement
-				result, err := linkInsertionStatement.Exec(url)
+				result, err := linkInsertionStatement.Exec(userURL)
 				if err != nil {
 					http.Redirect(w, r, "/?error=insError", 301)
 					return
