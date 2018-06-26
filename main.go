@@ -12,6 +12,7 @@ import (
 	"github.com/go-chi/hostrouter"
 	_ "github.com/go-sql-driver/mysql"
 	"github.com/joho/godotenv"
+	redistore "gopkg.in/boj/redistore.v1"
 )
 
 func main() {
@@ -26,6 +27,16 @@ func main() {
 	initDatabase()
 	defer DB.Close()
 
+	// Session store
+	secretKey := os.Getenv("SESSION_SECRET")
+	redisHost := os.Getenv("REDIS_HOST")
+	redisPassword := os.Getenv("REDIS_PASSWORD")
+	store, err := redistore.NewRediStore(10, "tcp", redisHost, redisPassword, []byte(secretKey))
+	if err != nil {
+		panic(err)
+	}
+	defer store.Close()
+
 	// Initialize the main router
 	r := chi.NewRouter()
 
@@ -39,9 +50,9 @@ func main() {
 	hr := hostrouter.New()
 
 	shortURL := os.Getenv("SHORT_URL")
-	hr.Map(shortURL, shortenerRouter())
+	hr.Map(shortURL, shortenerRouter(store))
 
-	hr.Map("*", websiteRouter())
+	hr.Map("*", websiteRouter(store))
 
 	r.Mount("/", hr)
 

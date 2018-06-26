@@ -8,6 +8,8 @@ import (
 	"net/url"
 	"strconv"
 
+	"gopkg.in/boj/redistore.v1"
+
 	"github.com/asaskevich/govalidator"
 	"github.com/go-chi/chi"
 	"github.com/gobuffalo/packr"
@@ -19,7 +21,7 @@ type IndexMessage struct {
 	SuccessMessage string
 }
 
-func websiteRouter() chi.Router {
+func websiteRouter(store *redistore.RediStore) chi.Router {
 	// Create a packr box
 	box := packr.NewBox("./views")
 	indexHTMLString := box.String("index.html")
@@ -32,10 +34,17 @@ func websiteRouter() chi.Router {
 	r := chi.NewRouter()
 
 	r.Get("/", func(w http.ResponseWriter, r *http.Request) {
-		err := r.URL.Query().Get("error")
-		if err != "" {
+		// Get a session.
+		session, err := store.Get(r, "session")
+		if err != nil {
+			log.Println("ERROR GETTING SESSION: ", err.Error())
+		}
+		fmt.Println("VALUE: ", session.Values["test"])
+
+		pErr := r.URL.Query().Get("error")
+		if pErr != "" {
 			indexMessage := &IndexMessage{}
-			switch err {
+			switch pErr {
 			case "noURL":
 				indexMessage.ErrorMessage = "You must enter a URL"
 			case "invalidURL":
@@ -64,6 +73,13 @@ func websiteRouter() chi.Router {
 
 	// Link stats
 	r.Get("/stats/{linkID}", func(w http.ResponseWriter, r *http.Request) {
+		// Get a session.
+		session, err := store.Get(r, "session")
+		if err != nil {
+			log.Println("ERROR GETTING SESSION: ", err.Error())
+		}
+		fmt.Println("VALUE: ", session.Values["test"])
+
 		// Create prepared statements
 		selectStatement, err := db.Prepare("SELECT * from links WHERE id = ?")
 		if err != nil {
@@ -96,6 +112,13 @@ func websiteRouter() chi.Router {
 	})
 
 	r.Post("/createShortURL", func(w http.ResponseWriter, r *http.Request) {
+		// Get a session.
+		session, err := store.Get(r, "session")
+		if err != nil {
+			log.Println("ERROR GETTING SESSION: ", err.Error())
+		}
+		fmt.Println("VALUE: ", session.Values["test"])
+
 		// First, we parse the form
 		r.ParseForm()
 

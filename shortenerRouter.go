@@ -7,9 +7,10 @@ import (
 	"strconv"
 
 	"github.com/go-chi/chi"
+	redistore "gopkg.in/boj/redistore.v1"
 )
 
-func shortenerRouter() chi.Router {
+func shortenerRouter(store *redistore.RediStore) chi.Router {
 	// MySQL database
 	db := DB
 
@@ -17,6 +18,12 @@ func shortenerRouter() chi.Router {
 
 	// Link redirect
 	r.Get("/{linkID}", func(w http.ResponseWriter, r *http.Request) {
+		// Get a session.
+		session, err := store.Get(r, "session")
+		if err != nil {
+			log.Println("ERROR GETTING SESSION: ", err.Error())
+		}
+		fmt.Println("VALUE: ", session.Values["test"])
 		// Create prepared statements
 		selectStatement, err := db.Prepare("SELECT * from links WHERE id = ?")
 		if err != nil {
