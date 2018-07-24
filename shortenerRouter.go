@@ -4,6 +4,7 @@ import (
 	"fmt"
 	"log"
 	"net/http"
+	"os"
 	"strconv"
 
 	"github.com/go-chi/chi"
@@ -16,6 +17,11 @@ func shortenerRouter(store *redistore.RediStore) chi.Router {
 
 	r := chi.NewRouter()
 
+	// Redirect to site on root
+	websiteURL := os.Getenv("WEBSITE_URL")
+	r.Get("/", func(w http.ResponseWriter, r *http.Request) {
+		http.Redirect(w, r, "https://"+websiteURL, 302)
+	})
 	// Link redirect
 	r.Get("/{linkID}", func(w http.ResponseWriter, r *http.Request) {
 		// Create prepared statements
