@@ -54,7 +54,7 @@ func main() {
 	websiteURL := os.Getenv("WEBSITE_URL")
 	hr.Map(shortURL, shortenerRouter(store))
 
-	hr.Map('*', websiteRouter(store))
+	hr.Map("*", websiteRouter(store))
 
 	r.Mount("/", hr)
 
