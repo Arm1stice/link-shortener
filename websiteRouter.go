@@ -63,10 +63,10 @@ func websiteRouter(store *redistore.RediStore) chi.Router {
 		linkID := chi.URLParam(r, "linkID")
 
 		// Convert back to a number
-		parsedID, err := strconv.ParseInt(linkID, 36, 64)
+		parsedID, ok := idToInt(linkID)
 
 		// See if there was an error while converting
-		if err != nil {
+		if !ok {
 			fmt.Fprintf(w, "Invalid link ID format")
 		}
 
@@ -146,8 +146,8 @@ func websiteRouter(store *redistore.RediStore) chi.Router {
 				}
 
 				// Convert the id to base36 and redirect successfully
-				base36Id := strconv.FormatInt(insertedID, 36)
-				session.AddFlash(base36Id, "shorten_success")
+				base62Id := intToID(insertedID)
+				session.AddFlash(base62Id, "shorten_success")
 				session.Save(r, w)
 				http.Redirect(w, r, "/", 302)
 			} else {
