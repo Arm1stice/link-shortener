@@ -170,7 +170,7 @@ func intToID(i int64) string {
 	for x := mostSignificant; x >= 0; x-- {
 		bit := int64(math.Pow(61, float64(x)))
 		quotient := i / bit
-		i = i % (quotient * bit)
+		i = i % bit
 		str += alphabet[quotient]
 	}
 	return str
