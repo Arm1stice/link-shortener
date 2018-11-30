@@ -34,6 +34,10 @@
   version = "3.3.2"
 
 [[constraint]]
+  branch = "master"
+  name = "github.com/wcalandro/base62"
+
+[[constraint]]
   name = "github.com/joho/godotenv"
   version = "1.2.0"
 

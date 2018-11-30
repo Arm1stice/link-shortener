@@ -108,6 +108,12 @@
   version = "v1.0.0"
 
 [[projects]]
+  branch = "master"
+  name = "github.com/wcalandro/base62"
+  packages = ["."]
+  revision = "6d9805bdb446c19ce8d9346067227abd6adce444"
+
+[[projects]]
   name = "google.golang.org/appengine"
   packages = ["cloudsql"]
   revision = "4a4468ece617fc8205e99368fa2200e9d1fad421"
@@ -122,6 +128,6 @@
 [solve-meta]
   analyzer-name = "dep"
   analyzer-version = 1
-  inputs-digest = "ea80c0bc3822c6c8b5faa52e4545451fd29c5e703f9bf30ee69552d242cf9a83"
+  inputs-digest = "ab16902ad7f5bccf6efdd1d7fd48f8433a3ce975ec525d41dddf23c539128f60"
   solver-name = "gps-cdcl"
   solver-version = 1
