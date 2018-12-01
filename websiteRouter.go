@@ -147,7 +147,7 @@ func websiteRouter(store *redistore.RediStore) chi.Router {
 				}
 
 				// Convert the id to base36 and redirect successfully
-				base62Id := base62.ToB62(insertedID)
+				base62Id := base62.ToB62(uint64(insertedID))
 				session.AddFlash(base62Id, "shorten_success")
 				session.Save(r, w)
 				http.Redirect(w, r, "/", 302)
