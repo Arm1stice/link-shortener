@@ -6,7 +6,7 @@ import (
 	"net/http"
 	"os"
 
-	"github.com/go-chi/chi"
+	"github.com/go-chi/chi/v5"
 	"github.com/wcalandro/base62"
 	redistore "gopkg.in/boj/redistore.v1"
 )

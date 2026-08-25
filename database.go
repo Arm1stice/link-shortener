@@ -6,7 +6,7 @@ import (
 	"os"
 )
 
-//DB MySQL database
+// DB MySQL database
 var (
 	DB *sql.DB
 )

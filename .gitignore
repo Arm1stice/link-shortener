@@ -1,6 +1,4 @@
 .env
-link-shortener*
-.idea/workspace.xml
-.idea/tasks.xml
-vendor/*
-*-packr.go
+link-shortener
+coverage.out
+.idea/

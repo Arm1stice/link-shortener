@@ -1,6 +1,7 @@
 package main
 
 import (
+	_ "embed"
 	"fmt"
 	"html/template"
 	"log"
@@ -11,10 +12,16 @@ import (
 	"gopkg.in/boj/redistore.v1"
 
 	"github.com/asaskevich/govalidator"
-	"github.com/go-chi/chi"
-	"github.com/gobuffalo/packr"
+	"github.com/go-chi/chi/v5"
 	"github.com/wcalandro/base62"
 )
+
+//go:embed views/index.html
+var indexHTML string
+
+func loadIndexTemplate() (*template.Template, error) {
+	return template.New("index.html").Parse(indexHTML)
+}
 
 // Messages when shortening
 type shortenMessage struct {
@@ -23,11 +30,7 @@ type shortenMessage struct {
 }
 
 func websiteRouter(store *redistore.RediStore) chi.Router {
-	// Create a packr box
-	box := packr.NewBox("./views")
-	indexHTMLString := box.String("index.html")
-	// Implement the templates
-	indexTemplate := template.Must(template.New("index.html").Parse(indexHTMLString))
+	indexTemplate := template.Must(loadIndexTemplate())
 
 	// MySQL database
 	db := DB
@@ -81,7 +84,7 @@ func websiteRouter(store *redistore.RediStore) chi.Router {
 			fmt.Fprintf(w, "That link doesn't exist")
 			return
 		}
-		fmt.Fprintf(w, "Link: "+link+" | Views: "+strconv.FormatInt(views, 10))
+		fmt.Fprintf(w, "Link: %s | Views: %s", link, strconv.FormatInt(views, 10))
 	})
 
 	r.Post("/createShortURL", func(w http.ResponseWriter, r *http.Request) {
