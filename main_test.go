@@ -7,6 +7,7 @@ import (
 	"database/sql/driver"
 	"encoding/json"
 	"errors"
+	"io"
 	"net/http"
 	"net/http/httptest"
 	"strings"
@@ -44,49 +45,43 @@ func TestLegacyBase62Compatibility(t *testing.T) {
 	}
 }
 
-func TestRootHandlerRoutesByHost(t *testing.T) {
+func TestRootHandlerRoutesByPath(t *testing.T) {
 	t.Parallel()
 
-	shortHandler := http.HandlerFunc(func(w http.ResponseWriter, _ *http.Request) {
-		_, _ = w.Write([]byte("short"))
-	})
-	websiteHandler := http.HandlerFunc(func(w http.ResponseWriter, _ *http.Request) {
-		_, _ = w.Write([]byte("website"))
-	})
-	handler := newRootHandler("wcal.xyz", shortHandler, websiteHandler)
+	handler := newRootHandler(nil, "wcal.xyz")
 
 	cases := []struct {
-		name string
-		host string
-		want string
+		method string
+		path   string
+		status int
+		body   string
 	}{
-		{name: "short host", host: "wcal.xyz", want: "short"},
-		{name: "short host with port", host: "wcal.xyz:5000", want: "short"},
-		{name: "short host case insensitive", host: "WCAL.XYZ", want: "short"},
-		{name: "website host", host: "links.wcalandro.com", want: "website"},
+		{http.MethodGet, "/", http.StatusOK, `<form id="shorten-form">`},
+		{http.MethodPost, "/api/links", http.StatusBadRequest, "Request body must be valid JSON"},
+		{http.MethodGet, "/api/links", http.StatusMethodNotAllowed, ""},
+		{http.MethodGet, "/unknown/path", http.StatusNotFound, ""},
 	}
 
-	for _, tc := range cases {
-		t.Run(tc.name, func(t *testing.T) {
-			req := httptest.NewRequest(http.MethodGet, "http://"+tc.host+"/example", nil)
-			recorder := httptest.NewRecorder()
+	for _, host := range []string{"wcal.xyz", "wcal.xyz:5000", "WCAL.XYZ", "links.wcalandro.com"} {
+		for _, tc := range cases {
+			t.Run(host+"/"+tc.method+tc.path, func(t *testing.T) {
+				req := httptest.NewRequest(tc.method, "http://"+host+tc.path, nil)
+				recorder := httptest.NewRecorder()
 
-			handler.ServeHTTP(recorder, req)
+				handler.ServeHTTP(recorder, req)
 
-			if got := recorder.Body.String(); got != tc.want {
-				t.Fatalf("body = %q, want %q", got, tc.want)
-			}
-		})
+				if recorder.Code != tc.status || !strings.Contains(recorder.Body.String(), tc.body) {
+					t.Fatalf("response = %d %q, want %d containing %q", recorder.Code, recorder.Body.String(), tc.status, tc.body)
+				}
+			})
+		}
 	}
 }
 
 func TestRootHandlerHealthzIsHostIndependent(t *testing.T) {
 	t.Parallel()
 
-	unreachable := http.HandlerFunc(func(w http.ResponseWriter, _ *http.Request) {
-		http.Error(w, "unexpected application handler", http.StatusInternalServerError)
-	})
-	handler := newRootHandler("wcal.xyz", unreachable, unreachable)
+	handler := newRootHandler(nil, "wcal.xyz")
 
 	for _, host := range []string{"wcal.xyz", "links.wcalandro.com", "127.0.0.1:5000"} {
 		req := httptest.NewRequest(http.MethodGet, "http://"+host+"/healthz", nil)
@@ -165,22 +160,64 @@ type createLinkTestDriver struct{}
 
 var registerCreateLinkTestDriver sync.Once
 
-func (createLinkTestDriver) Open(string) (driver.Conn, error) { return createLinkTestConn{}, nil }
-
-type createLinkTestConn struct{}
-
-func (createLinkTestConn) Prepare(string) (driver.Stmt, error) {
-	return nil, errors.New("prepare is not supported")
+func (createLinkTestDriver) Open(string) (driver.Conn, error) {
+	return &createLinkTestConn{views: 7}, nil
 }
-func (createLinkTestConn) Close() error { return nil }
-func (createLinkTestConn) Begin() (driver.Tx, error) {
+
+type createLinkTestConn struct{ views int64 }
+
+func (c *createLinkTestConn) Prepare(query string) (driver.Stmt, error) {
+	if query != "SELECT * from links WHERE id = ?" && query != "UPDATE links SET views=views+1 WHERE id = ?" {
+		return nil, errors.New("unexpected prepared statement")
+	}
+	return &createLinkTestStmt{conn: c, query: query}, nil
+}
+func (*createLinkTestConn) Close() error { return nil }
+func (*createLinkTestConn) Begin() (driver.Tx, error) {
 	return nil, errors.New("transactions are not supported")
 }
-func (createLinkTestConn) ExecContext(_ context.Context, _ string, args []driver.NamedValue) (driver.Result, error) {
-	if len(args) != 1 || args[0].Value != "https://example.com/a" {
+func (*createLinkTestConn) ExecContext(_ context.Context, query string, args []driver.NamedValue) (driver.Result, error) {
+	if query != "INSERT INTO links (url, views) VALUES (?, 0)" || len(args) != 1 || args[0].Value != "https://example.com/a" {
 		return nil, errors.New("unexpected insert arguments")
 	}
 	return createLinkTestResult{}, nil
+}
+
+type createLinkTestStmt struct {
+	conn  *createLinkTestConn
+	query string
+}
+
+func (*createLinkTestStmt) Close() error  { return nil }
+func (*createLinkTestStmt) NumInput() int { return 1 }
+func (s *createLinkTestStmt) Exec(args []driver.Value) (driver.Result, error) {
+	if s.query != "UPDATE links SET views=views+1 WHERE id = ?" || len(args) != 1 || args[0] != int64(303) {
+		return nil, errors.New("unexpected update arguments")
+	}
+	s.conn.views++
+	return createLinkTestResult{}, nil
+}
+func (s *createLinkTestStmt) Query(args []driver.Value) (driver.Rows, error) {
+	if s.query != "SELECT * from links WHERE id = ?" || len(args) != 1 || args[0] != int64(303) {
+		return nil, errors.New("unexpected select arguments")
+	}
+	return &createLinkTestRows{views: s.conn.views}, nil
+}
+
+type createLinkTestRows struct {
+	views int64
+	done  bool
+}
+
+func (*createLinkTestRows) Columns() []string { return []string{"id", "url", "views"} }
+func (*createLinkTestRows) Close() error      { return nil }
+func (r *createLinkTestRows) Next(values []driver.Value) error {
+	if r.done {
+		return io.EOF
+	}
+	values[0], values[1], values[2] = int64(303), "https://example.com/a", r.views
+	r.done = true
+	return nil
 }
 
 type createLinkTestResult struct{}
@@ -198,8 +235,9 @@ func TestCreateLinkAPI(t *testing.T) {
 	}
 	t.Cleanup(func() { _ = db.Close() })
 
-	handler := websiteRouter(db, "wcal.xyz")
-	req := httptest.NewRequest(http.MethodPost, "/api/links", strings.NewReader(`{"url":"https://example.com/a"}`))
+	db.SetMaxOpenConns(1)
+	handler := newRootHandler(db, "wcal.xyz")
+	req := httptest.NewRequest(http.MethodPost, "https://wcal.xyz/api/links", strings.NewReader(`{"url":"https://example.com/a"}`))
 	recorder := httptest.NewRecorder()
 
 	handler.ServeHTTP(recorder, req)
@@ -213,6 +251,23 @@ func TestCreateLinkAPI(t *testing.T) {
 	}
 	if response.Code != "4T" || response.ShortURL != "https://wcal.xyz/4T" {
 		t.Fatalf("response = %+v", response)
+	}
+
+	for _, tc := range []struct {
+		path     string
+		status   int
+		body     string
+		location string
+	}{
+		{"/stats/4T", http.StatusOK, "Link: https://example.com/a | Views: 7", ""},
+		{"/4T", http.StatusFound, "", "https://example.com/a"},
+		{"/stats/4T", http.StatusOK, "Link: https://example.com/a | Views: 8", ""},
+	} {
+		recorder := httptest.NewRecorder()
+		handler.ServeHTTP(recorder, httptest.NewRequest(http.MethodGet, "https://wcal.xyz"+tc.path, nil))
+		if recorder.Code != tc.status || !strings.Contains(recorder.Body.String(), tc.body) || recorder.Header().Get("Location") != tc.location {
+			t.Fatalf("%s: response = %d %q, location %q; want %d containing %q, location %q", tc.path, recorder.Code, recorder.Body.String(), recorder.Header().Get("Location"), tc.status, tc.body, tc.location)
+		}
 	}
 }
 

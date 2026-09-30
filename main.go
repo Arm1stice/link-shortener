@@ -1,12 +1,11 @@
 package main
 
 import (
+	"database/sql"
 	"fmt"
 	"log"
-	"net"
 	"net/http"
 	"os"
-	"strings"
 	"time"
 
 	"github.com/go-chi/chi/v5"
@@ -15,26 +14,15 @@ import (
 	"github.com/joho/godotenv"
 )
 
-func newRootHandler(shortHost string, shortHandler, websiteHandler http.Handler) http.Handler {
-	return http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
-		if r.URL.Path == "/healthz" {
-			w.Header().Set("Content-Type", "text/plain; charset=utf-8")
-			w.WriteHeader(http.StatusOK)
-			_, _ = w.Write([]byte("ok\n"))
-			return
-		}
-
-		host := r.Host
-		if parsedHost, _, err := net.SplitHostPort(host); err == nil {
-			host = parsedHost
-		}
-		if strings.EqualFold(host, shortHost) {
-			shortHandler.ServeHTTP(w, r)
-			return
-		}
-
-		websiteHandler.ServeHTTP(w, r)
+func newRootHandler(db *sql.DB, shortHost string) http.Handler {
+	r := websiteRouter(db, shortHost)
+	r.HandleFunc("/healthz", func(w http.ResponseWriter, r *http.Request) {
+		w.Header().Set("Content-Type", "text/plain; charset=utf-8")
+		w.WriteHeader(http.StatusOK)
+		_, _ = w.Write([]byte("ok\n"))
 	})
+	r.Mount("/", shortenerRouter(db))
+	return r
 }
 
 func main() {
@@ -60,7 +48,7 @@ func main() {
 	r.Use(middleware.Timeout(60 * time.Second))
 
 	shortURL := os.Getenv("SHORT_URL")
-	r.Mount("/", newRootHandler(shortURL, shortenerRouter(DB), websiteRouter(DB, shortURL)))
+	r.Mount("/", newRootHandler(DB, shortURL))
 
 	// Handle all 404
 	r.NotFound(func(w http.ResponseWriter, r *http.Request) {

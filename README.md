@@ -1,9 +1,9 @@
 # Link Shortener
 
-A small Go link shortener with separate hostnames for the short links and the link-creation website.
+A small Go link shortener with one hostname for the short links and the link-creation website.
 
 - `wcal.xyz/<code>` redirects a base62 code to its stored URL.
-- `links.wcalandro.com` provides the creation form and link statistics.
+- `wcal.xyz/` provides the creation form; `wcal.xyz/stats/<code>` shows link statistics.
 - MySQL stores links and view counts.
 - `POST /api/links` creates links and returns the short URL as JSON without a page refresh.
 
@@ -17,11 +17,10 @@ A small Go link shortener with separate hostnames for the short links and the li
 | Variable | Description | Example |
 |---|---|---|
 | `MYSQL_URI` | Go MySQL driver DSN | `user:password@tcp(mysql:3306)/link_shortener?charset=utf8mb4&parseTime=true` |
-| `WEBSITE_URL` | Hostname for the creation website | `links.wcalandro.com` |
-| `SHORT_URL` | Hostname used for short redirects | `wcal.xyz` |
+| `SHORT_URL` | Public hostname for the website and generated short URLs (no scheme or path) | `wcal.xyz` |
 | `PORT` | HTTP port; optional | `5000` |
 
-The creation endpoint is public. Protect `links.wcalandro.com` at the reverse proxy if link creation should be private. Redirects on `wcal.xyz` must remain public.
+The creation endpoint is public. All routes are available on any hostname pointing to the app; generated short URLs use `SHORT_URL`. `WEBSITE_URL` is no longer used and can be removed from existing deployments. Existing short links and database IDs are unchanged.
 
 ## Development
 
@@ -63,7 +62,7 @@ docker buildx build --platform linux/amd64,linux/arm64 .
 2. Restore the legacy MySQL dump into the `link_shortener` database while preserving IDs and `AUTO_INCREMENT`.
 3. Configure the environment variables above using Dokploy secrets.
 4. Deploy this repository using its Dockerfile and internal port 5000.
-5. Attach both `wcal.xyz` and `links.wcalandro.com` to the application.
+5. Attach `wcal.xyz` to the application. The old website hostname is optional and can continue serving the same app.
 6. Verify `/healthz`, a representative legacy redirect, view increments, and creation of the next ID before changing DNS.
 
 The short-code mapping depends on the exact legacy base62 alphabet. Compatibility tests cover IDs through the current production maximum.
