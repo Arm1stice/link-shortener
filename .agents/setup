@@ -1,0 +1,50 @@
+#!/usr/bin/env bash
+set -euo pipefail
+
+go_version="go1.26.7"
+install_root="$HOME/.local/share/go"
+version_dir="$install_root/$go_version"
+
+case "$(uname -m)" in
+    x86_64)
+        go_arch="amd64"
+        checksum="ffb5f8de10c62550dfddab66b36b57030721e0a44a3218e9e1181d7b59f121ca"
+        ;;
+    aarch64|arm64)
+        go_arch="arm64"
+        checksum="5a4ec883379d51ee9ce1040d5e87f8d35e20387574dd8c947feb01eabc3c1b37"
+        ;;
+    *)
+        echo "Unsupported architecture: $(uname -m)" >&2
+        exit 1
+        ;;
+esac
+
+if [[ ! -x "$version_dir/bin/go" ]] || [[ "$($version_dir/bin/go version 2>/dev/null || true)" != "go version $go_version linux/$go_arch" ]]; then
+    echo "Installing $go_version for linux/$go_arch..."
+    archive="$(mktemp)"
+    trap 'rm -f "$archive"' EXIT
+    curl -fsSL "https://go.dev/dl/$go_version.linux-$go_arch.tar.gz" -o "$archive"
+    echo "$checksum  $archive" | sha256sum --check --status
+    rm -rf "$version_dir"
+    mkdir -p "$version_dir"
+    tar -xzf "$archive" -C "$version_dir" --strip-components=1
+    rm -f "$archive"
+    trap - EXIT
+fi
+
+mkdir -p "$install_root"
+ln -sfnT "$version_dir" "$install_root/current"
+
+profile_marker="# link-shortener Go toolchain"
+if ! grep -Fqx "$profile_marker" "$HOME/.bash_profile" 2>/dev/null; then
+    cat >> "$HOME/.bash_profile" <<'EOF'
+
+# link-shortener Go toolchain
+export PATH="$HOME/.local/share/go/current/bin:$PATH"
+EOF
+fi
+
+echo "Downloading Go modules..."
+"$install_root/current/bin/go" mod download
+"$install_root/current/bin/go" version
