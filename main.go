@@ -13,7 +13,6 @@ import (
 	"github.com/go-chi/chi/v5/middleware"
 	_ "github.com/go-sql-driver/mysql"
 	"github.com/joho/godotenv"
-	redistore "gopkg.in/boj/redistore.v1"
 )
 
 func newRootHandler(shortHost string, shortHandler, websiteHandler http.Handler) http.Handler {
@@ -50,16 +49,6 @@ func main() {
 	initDatabase()
 	defer DB.Close()
 
-	// Session store
-	secretKey := os.Getenv("SESSION_SECRET")
-	redisHost := os.Getenv("REDIS_HOST")
-	redisPassword := os.Getenv("REDIS_PASSWORD")
-	store, err := redistore.NewRediStore(10, "tcp", redisHost, redisPassword, []byte(secretKey))
-	if err != nil {
-		panic(err)
-	}
-	defer store.Close()
-
 	// Initialize the main router
 	r := chi.NewRouter()
 
@@ -71,7 +60,7 @@ func main() {
 	r.Use(middleware.Timeout(60 * time.Second))
 
 	shortURL := os.Getenv("SHORT_URL")
-	r.Mount("/", newRootHandler(shortURL, shortenerRouter(store), websiteRouter(store)))
+	r.Mount("/", newRootHandler(shortURL, shortenerRouter(DB), websiteRouter(DB, shortURL)))
 
 	// Handle all 404
 	r.NotFound(func(w http.ResponseWriter, r *http.Request) {

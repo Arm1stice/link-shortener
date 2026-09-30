@@ -1,6 +1,7 @@
 package main
 
 import (
+	"database/sql"
 	"fmt"
 	"log"
 	"net/http"
@@ -8,13 +9,9 @@ import (
 
 	"github.com/go-chi/chi/v5"
 	"github.com/wcalandro/base62"
-	redistore "gopkg.in/boj/redistore.v1"
 )
 
-func shortenerRouter(store *redistore.RediStore) chi.Router {
-	// MySQL database
-	db := DB
-
+func shortenerRouter(db *sql.DB) chi.Router {
 	r := chi.NewRouter()
 
 	// Redirect to site on root

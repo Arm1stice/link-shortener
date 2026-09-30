@@ -5,24 +5,20 @@ A small Go link shortener with separate hostnames for the short links and the li
 - `wcal.xyz/<code>` redirects a base62 code to its stored URL.
 - `links.wcalandro.com` provides the creation form and link statistics.
 - MySQL stores links and view counts.
-- Redis stores short-lived flash sessions.
+- `POST /api/links` creates links and returns the short URL as JSON without a page refresh.
 
 ## Requirements
 
 - Go 1.26.7 or newer
 - MySQL 8.4 (the legacy MySQL 5.7 dump is compatible)
-- Redis 7
 
 ## Environment variables
 
 | Variable | Description | Example |
 |---|---|---|
 | `MYSQL_URI` | Go MySQL driver DSN | `user:password@tcp(mysql:3306)/link_shortener?charset=utf8mb4&parseTime=true` |
-| `REDIS_HOST` | Redis host and port | `redis:6379` |
-| `REDIS_PASSWORD` | Redis password | Set a generated secret |
 | `WEBSITE_URL` | Hostname for the creation website | `links.wcalandro.com` |
 | `SHORT_URL` | Hostname used for short redirects | `wcal.xyz` |
-| `SESSION_SECRET` | Session authentication secret | Set a generated secret of at least 32 bytes |
 | `PORT` | HTTP port; optional | `5000` |
 
 The creation endpoint is public. Protect `links.wcalandro.com` at the reverse proxy if link creation should be private. Redirects on `wcal.xyz` must remain public.
@@ -63,7 +59,7 @@ docker buildx build --platform linux/amd64,linux/arm64 .
 
 ## Dokploy deployment
 
-1. Create persistent MySQL 8.4 and Redis 7 services on an internal network.
+1. Create a persistent MySQL 8.4 service on an internal network.
 2. Restore the legacy MySQL dump into the `link_shortener` database while preserving IDs and `AUTO_INCREMENT`.
 3. Configure the environment variables above using Dokploy secrets.
 4. Deploy this repository using its Dockerfile and internal port 5000.

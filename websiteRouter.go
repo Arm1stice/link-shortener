@@ -1,15 +1,18 @@
 package main
 
 import (
+	"database/sql"
 	_ "embed"
+	"encoding/json"
 	"fmt"
 	"html/template"
+	"io"
 	"log"
 	"net/http"
 	"net/url"
+	"path"
 	"strconv"
-
-	"gopkg.in/boj/redistore.v1"
+	"strings"
 
 	"github.com/asaskevich/govalidator"
 	"github.com/go-chi/chi/v5"
@@ -23,34 +26,61 @@ func loadIndexTemplate() (*template.Template, error) {
 	return template.New("index.html").Parse(indexHTML)
 }
 
-// Messages when shortening
-type shortenMessage struct {
-	ErrorMessages   []interface{}
-	SuccessMessages []interface{}
+type createLinkRequest struct {
+	URL string `json:"url"`
 }
 
-func websiteRouter(store *redistore.RediStore) chi.Router {
-	indexTemplate := template.Must(loadIndexTemplate())
+type createLinkResponse struct {
+	Code     string `json:"code"`
+	ShortURL string `json:"short_url"`
+}
 
-	// MySQL database
-	db := DB
+type errorResponse struct {
+	Error string `json:"error"`
+}
+
+func writeJSON(w http.ResponseWriter, status int, value any) {
+	w.Header().Set("Content-Type", "application/json; charset=utf-8")
+	w.WriteHeader(status)
+	if err := json.NewEncoder(w).Encode(value); err != nil {
+		log.Printf("failed to encode JSON response: %v", err)
+	}
+}
+
+func normalizeURL(rawURL string) (string, error) {
+	rawURL = strings.TrimSpace(rawURL)
+	if rawURL == "" {
+		return "", fmt.Errorf("URL field cannot be empty")
+	}
+	if !govalidator.IsURL(rawURL) {
+		return "", fmt.Errorf("Invalid URL")
+	}
+
+	parsedURL, err := url.Parse(rawURL)
+	if err != nil {
+		return "", fmt.Errorf("Invalid URL")
+	}
+	if parsedURL.Scheme == "" {
+		parsedURL.Scheme = "http"
+	}
+	return parsedURL.String(), nil
+}
+
+func buildShortURL(shortHost, code string) string {
+	shortURL := &url.URL{Scheme: "https", Host: shortHost}
+	shortURL.Path = path.Join(shortURL.Path, code)
+	return shortURL.String()
+}
+
+func websiteRouter(db *sql.DB, shortHost string) chi.Router {
+	indexTemplate := template.Must(loadIndexTemplate())
 
 	r := chi.NewRouter()
 
 	r.Get("/", func(w http.ResponseWriter, r *http.Request) {
-		// Get a session.
-		session, err := store.Get(r, "session")
-		if err != nil {
-			log.Println("ERROR GETTING SESSION: ", err.Error())
+		if err := indexTemplate.Execute(w, nil); err != nil {
+			log.Printf("failed to render index: %v", err)
 		}
-
-		indexMessage := &shortenMessage{}
-		indexMessage.ErrorMessages = session.Flashes("shorten_error")
-		indexMessage.SuccessMessages = session.Flashes("shorten_success")
-
-		session.Save(r, w)
-
-		indexTemplate.Execute(w, indexMessage)
 	})
 
 	// Link stats
@@ -87,79 +117,46 @@ func websiteRouter(store *redistore.RediStore) chi.Router {
 		fmt.Fprintf(w, "Link: %s | Views: %s", link, strconv.FormatInt(views, 10))
 	})
 
-	r.Post("/createShortURL", func(w http.ResponseWriter, r *http.Request) {
-		// Get a session.
-		session, err := store.Get(r, "session")
+	r.Post("/api/links", func(w http.ResponseWriter, r *http.Request) {
+		r.Body = http.MaxBytesReader(w, r.Body, 1<<20)
+		decoder := json.NewDecoder(r.Body)
+		decoder.DisallowUnknownFields()
+
+		var request createLinkRequest
+		if err := decoder.Decode(&request); err != nil {
+			writeJSON(w, http.StatusBadRequest, errorResponse{Error: "Request body must be valid JSON"})
+			return
+		}
+		if err := decoder.Decode(&struct{}{}); err != io.EOF {
+			writeJSON(w, http.StatusBadRequest, errorResponse{Error: "Request body must be valid JSON"})
+			return
+		}
+
+		userURL, err := normalizeURL(request.URL)
 		if err != nil {
-			log.Println("ERROR GETTING SESSION: ", err.Error())
+			writeJSON(w, http.StatusBadRequest, errorResponse{Error: err.Error()})
+			return
 		}
 
-		// First, we parse the form
-		r.ParseForm()
-
-		// Get the value of URL from the form
-		userURL := r.FormValue("url")
-
-		// If URL value wasn't passed or is blank, redirect to noURL error message
-		if len(userURL) == 0 {
-			session.AddFlash("URL field cannot be empty", "shorten_error")
-			session.Save(r, w)
-			http.Redirect(w, r, "/", 302)
-		} else {
-			// Create link insertion statement
-			linkInsertionStatement, err := db.Prepare("INSERT INTO links (url, views) VALUES (?, 0)")
-			if err != nil {
-				log.Println("Failed to prepare linkInsertionStatement")
-				panic(err)
-			}
-			defer linkInsertionStatement.Close()
-			// Check if the URL is valid, if not, then redirect to invalidURL message
-			if isValidURL := govalidator.IsURL(userURL); isValidURL {
-				// If it's valid, we want to make sure it has a url scheme attached to it
-				var parsedURL *url.URL
-				parsedURL, err = url.Parse(userURL)
-				if err != nil {
-					session.AddFlash("An error occurred while parsing the URL", "shorten_error")
-					session.Save(r, w)
-					http.Redirect(w, r, "/", 302)
-					return
-				}
-
-				// Check if the parsed URL has a scheme and if not, add one
-				if parsedURL.Scheme == "" {
-					parsedURL.Scheme = "http"
-				}
-				userURL = parsedURL.String()
-
-				// Execute prepared statement
-				result, err := linkInsertionStatement.Exec(userURL)
-				if err != nil {
-					session.AddFlash("An error occurred while trying to insert URL into the database", "shorten_error")
-					session.Save(r, w)
-					http.Redirect(w, r, "/", 302)
-					return
-				}
-
-				// Get id of the inserted link
-				insertedID, err := result.LastInsertId()
-				if err != nil {
-					session.AddFlash("An error occurred while tryig to parse URL", "shorten_error")
-					session.Save(r, w)
-					http.Redirect(w, r, "/", 302)
-					return
-				}
-
-				// Convert the id to base36 and redirect successfully
-				base62Id := base62.ToB62(uint64(insertedID))
-				session.AddFlash(base62Id, "shorten_success")
-				session.Save(r, w)
-				http.Redirect(w, r, "/", 302)
-			} else {
-				session.AddFlash("Invalid URL", "shorten_error")
-				session.Save(r, w)
-				http.Redirect(w, r, "/", 302)
-			}
+		result, err := db.ExecContext(r.Context(), "INSERT INTO links (url, views) VALUES (?, 0)", userURL)
+		if err != nil {
+			log.Printf("failed to insert URL: %v", err)
+			writeJSON(w, http.StatusInternalServerError, errorResponse{Error: "Unable to shorten URL"})
+			return
 		}
+
+		insertedID, err := result.LastInsertId()
+		if err != nil {
+			log.Printf("failed to get inserted link ID: %v", err)
+			writeJSON(w, http.StatusInternalServerError, errorResponse{Error: "Unable to shorten URL"})
+			return
+		}
+
+		code := base62.ToB62(uint64(insertedID))
+		writeJSON(w, http.StatusCreated, createLinkResponse{
+			Code:     code,
+			ShortURL: buildShortURL(shortHost, code),
+		})
 	})
 
 	return r
